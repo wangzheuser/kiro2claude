@@ -260,6 +260,7 @@ describe('deriveKiroUsage — cache threshold gating', () => {
     ['claude-sonnet-4-5-20250929', 1024, 0.001],
     ['claude-sonnet-4-6', 1024, 0.005],
     ['claude-sonnet-5', 1024, 0.001],
+    ['claude-sonnet-5-5', 512, 0.001],
     ['claude-opus-4-7', 2048, 0.001],
     ['claude-opus-4-8', 1024, 0.001],
     ['claude-opus-5', 512, 0.001],
@@ -362,28 +363,77 @@ describe('deriveKiroUsage — sonnet-5 (Kiro billing override)', () => {
 });
 
 // ============================================================================
-// Opus 5.5: Kiro 计价偏离单价线(KIRO_BILLING),2026-09-27 直打标定
+// 带未命中溢价的 Kiro 计价(KIRO_BILLING):opus-5.5 2026-09-27 对照 opus-5、sonnet-5.5 2026-10-07
+// 对照 sonnet-5 直打标定
 // ============================================================================
-// claude-rate-probe.ts:cold = 新前缀首发;warm = 同前缀第二轮;warm+new = 命中前缀 + 12K 新内容。
-// 输出 "OK" 按 2 个 token 计。[label, total tokens (contextUsage), credits]
+// claude-rate-probe.ts:cold = 新前缀首发;warm = 同前缀第二轮;warm+new(opus-5.5)= 命中前缀 + 12K 新内容。
+// 输出 "OK" 按 2 个 token 计。COLD 行 = [label, total tokens (contextUsage), credits]。
 
-describe('deriveKiroUsage — opus-5.5 (Kiro billing override)', () => {
-  const COLD: Array<[string, number, number]> = [
-    ['cold-S', 18877, 0.23249279867330017],
-    ['cold-M', 30997, 0.3812291170812604],
-    ['cold-L', 55235, 0.6786772099502488],
-  ];
-  const WARM = [55261, 2, 0.18599196451077946] as const;
-
+describe.each([
+  {
+    model: 'claude-opus-5-5',
+    dotForm: 'claude-opus-5.5',
+    naive: '$4 标价反演只有 84%',
+    price: { in: 4e-6, write: 5e-6, read: 0.2e-6, out: 20e-6 },
+    COLD: [
+      ['cold-S', 18877, 0.23249279867330017],
+      ['cold-M', 30997, 0.3812291170812604],
+      ['cold-L', 55235, 0.6786772099502488],
+    ] as Array<[string, number, number]>,
+    WARM: [55261, 2, 0.18599196451077946] as const,
+  },
+  {
+    model: 'claude-sonnet-5-5',
+    dotForm: 'claude-sonnet-5.5',
+    naive: '$2 标价反演只有 45%',
+    price: { in: 2e-6, write: 2.5e-6, read: 0.2e-6, out: 10e-6 },
+    COLD: [
+      ['cold-S', 14562, 0.1167005015588723],
+      ['cold-M', 22651, 0.18122469724709783],
+      ['cold-L', 38798, 0.3100337851409619],
+    ] as Array<[string, number, number]>,
+    WARM: [38825, 2, 0.08546061441127699] as const,
+  },
+])('deriveKiroUsage — $model (Kiro billing override)', ({
+  model,
+  dotForm,
+  naive,
+  price,
+  COLD,
+  WARM,
+}) => {
   for (const [label, total, credits] of COLD) {
     it(`${label} @${total}: 冷请求反演不出命中(未命中溢价已计入)`, () => {
-      const out = deriveKiroUsage('claude-opus-5-5', total, 2, credits);
+      const out = deriveKiroUsage(model, total, 2, credits);
       expect(out.derived.derivedStatus).toBe('ok_derived');
       expect(out.cacheReadInputTokens).toBeLessThan(total * 0.01);
       expect(out.inputTokens + out.cacheCreationInputTokens + out.cacheReadInputTokens).toBe(total);
     });
   }
 
+  it(`同前缀第二轮:几乎全命中(照 ${naive})`, () => {
+    const out = deriveKiroUsage(model, ...WARM);
+    expect(out.derived.estimatedCacheHitRatio).toBeGreaterThan(0.99);
+  });
+
+  it('成本按 Anthropic 标价(写入 / 命中 / 输出)', () => {
+    const out = deriveKiroUsage(model, ...WARM);
+    const expected =
+      out.inputTokens * price.in +
+      out.cacheCreationInputTokens * price.write +
+      out.cacheReadInputTokens * price.read +
+      2 * price.out;
+    expect(out.derived.claudeEquivalentCostUsd).toBeCloseTo(expected, 12);
+  });
+
+  it('dot-form / -thinking 归一到同一 key', () => {
+    const base = deriveKiroUsage(model, ...WARM);
+    expect(deriveKiroUsage(dotForm, ...WARM)).toEqual(base);
+    expect(deriveKiroUsage(`${model}-thinking`, ...WARM)).toEqual(base);
+  });
+});
+
+describe('deriveKiroUsage — opus-5.5 专属', () => {
   it('长输出冷请求:输出不带未命中溢价,不凭空反演出命中', () => {
     // total 含本轮输出(所有模型都如此);Kiro 对输出按倍率计价、不加溢价(opus-5.5 / opus-5 输出单价比
     // 正好 2.0/2.2)。按这个口径构造冷请求的 credits:prompt 12K 全未命中 + 8K 输出。
@@ -396,32 +446,11 @@ describe('deriveKiroUsage — opus-5.5 (Kiro billing override)', () => {
     expect(r.cacheReadInputTokens).toBe(0);
   });
 
-  it('同前缀第二轮:几乎全命中(照 $4 标价反演只有 84%)', () => {
-    const out = deriveKiroUsage('claude-opus-5-5', ...WARM);
-    expect(out.derived.estimatedCacheHitRatio).toBeGreaterThan(0.99);
-  });
-
   it('命中前缀 + 新内容:两段各自按命中价 / 未命中价拆开', () => {
     // 按 cold 斜率与 warm 单价手算命中约 27.0K;照 $4 标价反演会是 0
     const out = deriveKiroUsage('claude-opus-5-5', 67380, 2, 0.5870098799336652);
     expect(out.cacheReadInputTokens).toBeGreaterThan(26_000);
     expect(out.cacheReadInputTokens).toBeLessThan(28_000);
-  });
-
-  it('成本按 Anthropic opus-5.5 标价:写入 $5、命中 $0.20、输出 $20', () => {
-    const out = deriveKiroUsage('claude-opus-5-5', ...WARM);
-    const expected =
-      out.inputTokens * 4e-6 +
-      out.cacheCreationInputTokens * 5e-6 +
-      out.cacheReadInputTokens * 0.2e-6 +
-      2 * 20e-6;
-    expect(out.derived.claudeEquivalentCostUsd).toBeCloseTo(expected, 12);
-  });
-
-  it('dot-form / -thinking 归一到同一 key', () => {
-    const base = deriveKiroUsage('claude-opus-5-5', ...WARM);
-    expect(deriveKiroUsage('claude-opus-5.5', ...WARM)).toEqual(base);
-    expect(deriveKiroUsage('claude-opus-5-5-thinking', ...WARM)).toEqual(base);
   });
 
   it('覆写只作用于 opus-5.5:opus-5 同尺寸冷请求照旧反演不出命中', () => {
@@ -430,6 +459,16 @@ describe('deriveKiroUsage — opus-5.5 (Kiro billing override)', () => {
     expect(
       deriveKiroUsage('claude-opus-5', 55235, 2, 0.2044306302819237).derived.estimatedCacheHitRatio,
     ).toBeGreaterThan(0.99);
+  });
+});
+
+describe('deriveKiroUsage — sonnet-5.5 专属', () => {
+  it('命中价与 sonnet-5 相同:同尺寸重发拆出的命中一致', () => {
+    const s55 = deriveKiroUsage('claude-sonnet-5-5', 38825, 2, 0.08546061441127699);
+    const s5 = deriveKiroUsage('claude-sonnet-5', 38842, 2, 0.08545845852404646);
+    expect(
+      Math.abs(s55.derived.estimatedCacheHitRatio - s5.derived.estimatedCacheHitRatio),
+    ).toBeLessThan(0.01);
   });
 });
 

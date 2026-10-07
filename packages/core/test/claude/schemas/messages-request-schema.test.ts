@@ -154,6 +154,12 @@ describe('messagesRequestSchema - thinking normalization (adaptive only)', () =>
     }
   });
 
+  it('between_tools (sonnet-5.5 thinking-off) → disabled, never reaches the wire', () => {
+    const result = parse({ type: 'between_tools' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.thinking).toEqual({ type: 'disabled' });
+  });
+
   it('unknown thinking.type / non-object → treated as no thinking', () => {
     for (const raw of [{ type: 'mega' }, 'enabled', 42, null]) {
       const result = parse(raw);

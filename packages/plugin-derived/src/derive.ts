@@ -143,6 +143,16 @@ const CLAUDE_PRICE_USD_PER_TOK: ReadonlyMap<string, ClaudePrice> = new Map([
       cacheCreation: 2.5e-6,
     },
   ],
+  // Sonnet 5.5 单价与 Sonnet 5 逐项相同,命中是通行的 0.1×
+  [
+    'claude-sonnet-5-5',
+    {
+      in: 2e-6,
+      out: 10e-6,
+      cacheRead: 0.2e-6,
+      cacheCreation: 2.5e-6,
+    },
+  ],
   [
     'claude-opus-4-5',
     {
@@ -227,9 +237,11 @@ function kiroBilling(rateMultiplier: number, missPremium = 1): KiroBilling {
  *
  * - sonnet-5:1.3x,Kiro 计价与 sonnet-4.6 逐项相同;标价降到 $2/$10 后离开倍率线。
  * - opus-5.5:2.0x,命中与输出按倍率缩放,未命中输入另加 1.942 倍基价。
+ * - sonnet-5.5:1.3x,命中与输出同 sonnet-5,未命中输入另加 1.942 倍基价。
  */
 const KIRO_BILLING: ReadonlyMap<string, KiroBilling> = new Map([
   ['claude-sonnet-5', kiroBilling(1.3)],
+  ['claude-sonnet-5-5', kiroBilling(1.3, 1.9423)],
   ['claude-opus-5-5', kiroBilling(2.0, 1.9423)],
 ]);
 
@@ -239,6 +251,7 @@ const MODEL_CACHE_THRESHOLD: ReadonlyMap<string, number> = new Map([
   ['claude-sonnet-4-5', 1024],
   ['claude-sonnet-4-6', 1024],
   ['claude-sonnet-5', 1024],
+  ['claude-sonnet-5-5', 512],
   ['claude-opus-4-5', 4096],
   ['claude-opus-4-6', 4096],
   ['claude-opus-4-7', 2048],

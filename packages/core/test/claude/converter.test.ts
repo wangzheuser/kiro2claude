@@ -105,7 +105,7 @@ describe('mapModel', () => {
     expect(mapModel('claude-opus-5-6-thinking')).toBeUndefined();
     expect(mapModel('claude-opus-5-6[1m]')).toBeUndefined();
     expect(mapModel('claude-opus-6')).toBeUndefined();
-    expect(mapModel('claude-sonnet-5-5')).toBeUndefined();
+    expect(mapModel('claude-sonnet-5-6')).toBeUndefined();
     expect(mapModel('claude-sonnet-6')).toBeUndefined();
     expect(mapModel('claude-haiku-5')).toBeUndefined();
   });
@@ -174,6 +174,17 @@ describe('mapModel', () => {
     expect(mapModel('claude-opus-5-20260720')).toBe('claude-opus-5');
   });
 
+  it('test_map_model_sonnet_5_5', () => {
+    expect(mapModel('claude-sonnet-5-5')).toBe('claude-sonnet-5.5');
+    expect(mapModel('claude-sonnet-5.5')).toBe('claude-sonnet-5.5');
+    expect(mapModel('claude-sonnet-5-5[1m]')).toBe('claude-sonnet-5.5');
+    expect(mapModel('claude-sonnet-5-5-thinking')).toBe('claude-sonnet-5.5');
+    expect(mapModel('anthropic.claude-sonnet-5-5')).toBe('claude-sonnet-5.5');
+    // 不与 sonnet-5 串
+    expect(mapModel('claude-sonnet-5')).toBe('claude-sonnet-5');
+    expect(mapModel('claude-sonnet-5-1m')).toBe('claude-sonnet-5');
+  });
+
   it('test_map_model_fable_unsupported', () => {
     // Fable 系列不支持(上游尚不成熟):不落进任何家族,400 UnsupportedModel
     expect(mapModel('claude-fable-5-1')).toBeUndefined();
@@ -237,11 +248,13 @@ describe('getContextWindowSize / usesNativeReasoning — opus-5', () => {
   });
 });
 
-describe('getContextWindowSize — opus-5.5', () => {
+describe('getContextWindowSize — opus-5.5 / sonnet-5.5', () => {
   // usesNativeReasoning 由 reasoning-native.test.ts 的全量模型表覆盖
-  it('opus-5.5 context window 为 1M', () => {
+  it('opus-5.5 / sonnet-5.5 context window 为 1M', () => {
     expect(getContextWindowSize('claude-opus-5-5')).toBe(1_000_000);
     expect(getContextWindowSize('claude-opus-5-5-thinking')).toBe(1_000_000);
+    expect(getContextWindowSize('claude-sonnet-5-5')).toBe(1_000_000);
+    expect(getContextWindowSize('claude-sonnet-5-5-thinking')).toBe(1_000_000);
   });
 });
 

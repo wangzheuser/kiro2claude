@@ -165,7 +165,7 @@ function claudeFamily(
 const CLAUDE_FAMILIES: readonly ClaudeFamily[] = [
   claudeFamily(
     'sonnet',
-    ['claude-sonnet-4.5', 'claude-sonnet-4.6', 'claude-sonnet-5'],
+    ['claude-sonnet-4.5', 'claude-sonnet-4.6', 'claude-sonnet-5', 'claude-sonnet-5.5'],
     'claude-sonnet-4.5',
   ),
   claudeFamily(
@@ -239,6 +239,8 @@ export function mapModel(model: string): string | undefined {
  *   - sonnet-4.6:schema 无 xhigh,加字段后回明文 reasoning + signature,默认不思考;
  *   - opus-5.5:schema 的 thinking 只有 adaptive(见 `MODELS_THINKING_ALWAYS_ON`),effort 五档、默认 medium,
  *     reasoning 帧同 opus-5;
+ *   - sonnet-5.5:schema 的 thinking 是 adaptive / between_tools,同样关不掉(见 `MODELS_THINKING_ALWAYS_ON`),
+ *     effort 五档、默认 high;
  *   - opus-4.6:发字段只涨计费、既无 reasoning 帧也无 signature,没有可回传的东西,不入集合;
  *   - 4.5 及以下 / haiku:无 schema。
  *
@@ -253,6 +255,7 @@ export const MODELS_WITH_NATIVE_REASONING: ReadonlySet<string> = new Set([
   'claude-opus-4.8',
   'claude-sonnet-4.6',
   'claude-opus-5.5',
+  'claude-sonnet-5.5',
   'gpt-5.6-sol',
   'gpt-5.6-terra',
   'gpt-5.6-luna',
@@ -262,12 +265,16 @@ export const MODELS_WITH_NATIVE_REASONING: ReadonlySet<string> = new Set([
 const MODELS_WITHOUT_XHIGH: ReadonlySet<string> = new Set(['claude-sonnet-4.6']);
 
 /**
- * thinking 不可关的模型:上游 schema 的 `thinking.type` 只有 adaptive,显式 `{type:"disabled"}` 回 400
+ * thinking 不可关的模型:上游 schema 的 `thinking.type` 没有 disabled,显式 `{type:"disabled"}` 回 400
  * `ValidationException`(2026-09-27 直打 opus-5.5)。客户端发 `disabled` 时按 adaptive 发,而不是把
  * 必 400 的请求送上去;客户端没给 effort 时取 low——Anthropic 文档对这类模型「想关思考」给的替代写法
- * 就是 adaptive + low,按模型默认(medium)反而比显式 low 想得更多。
+ * 就是 adaptive + low,按模型默认反而比显式 low 想得更多。客户端的 `between_tools` 已在
+ * `normalizeThinking` 归一成 disabled。
  */
-const MODELS_THINKING_ALWAYS_ON: ReadonlySet<string> = new Set(['claude-opus-5.5']);
+const MODELS_THINKING_ALWAYS_ON: ReadonlySet<string> = new Set([
+  'claude-opus-5.5',
+  'claude-sonnet-5.5',
+]);
 
 /** 「是不是 GPT 家族」的唯一判定(入参是 mapped modelId):决定 wire 形态、context window 与加密 reasoning 路径。 */
 export function isGptModelId(mappedModelId: string): boolean {
@@ -397,6 +404,7 @@ export function clientModelHasEncryptedReasoning(clientModel: string): boolean {
 const CLAUDE_MODELS_WITH_1M_CONTEXT: ReadonlySet<string> = new Set([
   'claude-sonnet-4.6',
   'claude-sonnet-5',
+  'claude-sonnet-5.5',
   'claude-opus-4.6',
   'claude-opus-4.7',
   'claude-opus-4.8',
@@ -411,7 +419,7 @@ const CLAUDE_MODELS_WITH_1M_CONTEXT: ReadonlySet<string> = new Set([
  * Opus 4.7 and 4.8 also ship with the 1M window (上游 list-models 实测确认).
  * Opus 5 同为 1M context (上游 `--list-models` 实测: context_window_tokens 1000000).
  * Sonnet 5 同为 1M context (Anthropic 官方规格,与前代 Sonnet 4.6 一致).
- * Opus 5.5 同为 1M context (上游 `ListAvailableModels` tokenLimits.maxInputTokens 1000000).
+ * Opus 5.5 / Sonnet 5.5 同为 1M context (上游 `ListAvailableModels` tokenLimits.maxInputTokens 1000000).
  * GPT-5.6 系列 2026-09-14 起为 1M context(上游 `--list-models` 实测: "1M context
  * window";此前为 272K),逐账号灰度,故可由 `KIRO2CLAUDE_GPT_CONTEXT_WINDOW` 覆盖。
  *

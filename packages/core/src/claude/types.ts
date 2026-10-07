@@ -98,14 +98,15 @@ export function preprocessSystem(raw: unknown): SystemMessage[] | undefined {
 
 /**
  * 把客户端的 `thinking` 收窄成网关认的形状:`enabled` / `adaptive` → `adaptive`,`disabled` 原样,
- * 其它视为未提;只留 `display`,丢掉其它字段(含 `budget_tokens`)。
+ * `between_tools`(Anthropic 在 sonnet-5.5 上关思考的写法)→ `disabled`,其它视为未提;只留 `display`,
+ * 丢掉其它字段(含 `budget_tokens`)。
  */
 export function normalizeThinking(raw: unknown): Thinking | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const { type, display } = raw as { type?: unknown; display?: unknown };
   let normalized: Thinking['type'];
   if (type === 'enabled' || type === 'adaptive') normalized = 'adaptive';
-  else if (type === 'disabled') normalized = 'disabled';
+  else if (type === 'disabled' || type === 'between_tools') normalized = 'disabled';
   else return undefined;
   const out: Thinking = { type: normalized };
   if (display === 'summarized' || display === 'omitted') out.display = display;

@@ -100,6 +100,25 @@ export const MODELS: Model[] = [
     type: 'chat',
     max_tokens: 64000,
   },
+  // created = 2026-09-28 发布日
+  {
+    id: 'claude-sonnet-5-5',
+    object: 'model',
+    created: 1790553600,
+    owned_by: 'anthropic',
+    display_name: 'Claude Sonnet 5.5',
+    type: 'chat',
+    max_tokens: 64000,
+  },
+  {
+    id: 'claude-sonnet-5-5-thinking',
+    object: 'model',
+    created: 1790553600,
+    owned_by: 'anthropic',
+    display_name: 'Claude Sonnet 5.5 (Thinking)',
+    type: 'chat',
+    max_tokens: 64000,
+  },
   {
     id: 'claude-sonnet-5',
     object: 'model',
