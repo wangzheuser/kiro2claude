@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/yupanzi/kiro2claude/compare/v1.10.1...v1.11.0) (2026-10-07)
+
+
+### Features
+
+* **core:** 支持 claude-sonnet-5.5,升 kiro-cli fixture 到 2.28.0 ([b49034f](https://github.com/yupanzi/kiro2claude/commit/b49034f70309e189d1205399e522b7fac20291ef))
+
 ## [1.10.1](https://github.com/yupanzi/kiro2claude/compare/v1.10.0...v1.10.1) (2026-09-27)
 
 
